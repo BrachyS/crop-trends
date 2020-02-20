@@ -6,6 +6,15 @@ references/
 docs/
 LICENSE
 Makefile
+*.gitkeep
+src/
+*.DS_Store
+.gitattributes
+.gitignore
+requirements.txt
+setup.py
+test_environment.py
+tox.ini
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
