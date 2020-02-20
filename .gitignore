@@ -4,17 +4,19 @@ data/.DS_Store
 data/raw/.gitkeep
 references/
 docs/
+src/
+
 LICENSE
 Makefile
-*.gitkeep
-src/
-*.DS_Store
-.gitattributes
-.gitignore
-requirements.txt
-setup.py
-test_environment.py
-tox.ini
+/*.gitkeep
+
+/*.DS_Store
+/.gitattributes
+/.gitignore
+/requirements.txt
+/setup.py
+/test_environment.py
+/tox.ini
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
