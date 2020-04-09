@@ -20,7 +20,7 @@ from statsmodels.graphics.tsaplots import plot_acf,plot_pacf
 
 # Function for step 1: extract data
 
-def item_element_country(df, item, element):
+def item_element_country(df, years, item, element):
     '''function to take input of an item name, element name (e.g. Export/import value) and
     output a formated file (aggregated by Reporter Countries) for downstream analysis'''
 
@@ -48,17 +48,18 @@ def df_normalize(df_original):
     '''
     # calculate 3-year rolling mean to smooth data and add 1 to prep for log transformation
     # Assume that adding 1 tonne per year will not significantly change the time series patterns for any country
-    rolled = df_original.rolling(3).sum().add(1)
+    rolled = df_original.rolling(3).mean().add(1)
+
     # Log-transformation to scale down countries with large numbers
     # Then divide each data point by the third row's value (removed first two rows which are NaNs)
     # So that all countries have the same start point 0
-    df_normalized = np.log(rolled[2:].div(rolled[2:].iloc[0]))
-
+    #df_normalized = np.log(rolled[2:].div(rolled[2:].iloc[0]))
+    df_normalized = rolled[2:]
     return df_normalized
 
 # Function for step 3: check stationarity and remove non-stationary countries
 def stationarity(df):
-    '''function to run Dickey-Fuller test on time series for each country,
+    '''function to run A-Dickey-Fuller test on time series for each country,
     return list of countries that passed the test'''
     non_stationary_countries = []
 
@@ -76,98 +77,120 @@ def stationarity(df):
 
 # Functions for Step 4: Training an ARIMA model for each country and use gridsearch to find best parameters
 # ref: https://machinelearningmastery.com/grid-search-arima-hyperparameters-with-python/
+# ref: https://www.machinelearningplus.com/time-series/arima-model-time-series-forecasting-python/
+# Step 4-1): Evaluate an ARIMA model use MSE
 
-# Step 1): Evaluate an ARIMA model use MSE
-def eval_arima(data, order):
+split = 0.7  # default train-test split value
+def eval_arima(data, order, split=split):
     '''function to split a time series into train and test set, build an ARIMA model
       use rolling one-at-a-time predictions, and reture mean squared error of the model'''
 
     # split dataset into training and testing
-    train_size = int(len(data) * 0.66)
+    train_size = int(len(data) * split)
     train, test = data[0: train_size], data[train_size:]
 
     # Make one prediction/forecast at a time, put the prediction into predictions list,
     # then add one data from test set to train set for the next model
-    rolling_train = [train_index for train_index in train]
+    rolling_train = [train_data for train_data in train]
     predictions = []
-    for test_index in range(len(test)):
+    for test_data in range(len(test)):
         model = ARIMA(rolling_train, order=order)
         model_fit = model.fit()
         one_prediction = model_fit.forecast()[0]
         predictions.append(one_prediction)
-        rolling_train.append(test[test_index])
-    mse = mean_squared_error(test, predictions)
-    return mse
+        rolling_train.append(test[test_data])
+    predictions = np.squeeze(predictions) # reshape data
+    mse = mean_squared_error(test, predictions) # Mean squared error
 
+    mape = np.mean(np.abs(predictions-test)/np.abs(test))  # Mean absolute percentage error
 
-# Step 2): Grid search for order(p,d,q) of ARIMA model
+    corr = np.corrcoef(predictions,test)[0,1] # correlation between fitted and test data
+
+    mins = np.amin(np.hstack([predictions[:,None], test[:, None]]), axis=1) # find min values of fitted and test
+    maxs = np.amax(np.hstack([predictions[:,None], test[:, None]]), axis=1) # find max values of fitted and test
+    minmax = 1 - np.mean(mins/maxs) # Min-max error
+
+    return({'MSE':mse, 'MAPE': mape, 'Corr': corr, 'MinMax': minmax})
+
+# Step 4-2): Grid search for order(p,d,q) of ARIMA model
 p_values = [0, 1, 2, 3, 4, 5, 6]
-d_values = [0, 1]
+d_values = [0]  # processed data are non-stationary so no need to optimize d value
 q_values = [0, 1, 2]
+
+
 import warnings
 warnings.filterwarnings("ignore")
 
 
-def gridsearch_arima(data, p_values, d_values, q_values):
-    best_score, best_cfg = float("inf"), None
+def gridsearch_arima(data, p_values, d_values, q_values, split=split):
+    best_mse, mape, corr, minmax, best_cfg = float("inf"),float("inf"),float("inf"),float("inf"), None
     for p in p_values:
         for d in d_values:
             for q in q_values:
                 order = (p, d, q)
+                split = split
                 try:
-                    mse = eval_arima(data, order)
-                    if mse < best_score:
-                        best_score, best_cfg = mse, order
-                    # print('ARIMA%s MSE=%.2E' %(order, mse)) # print out results for each configuration
+                    metrics = eval_arima(data, order, split)
+                    if metrics['MSE'] < best_mse: # Use MSE as accuracy metric
+                        best_mse, mape, corr, minmax, best_cfg = metrics['MSE'], metrics['MAPE'], metrics['Corr'], metrics['MinMax'], order
                 except:
                     continue
-    print(data.name, best_cfg, 'MSE=%.2E' % best_score)
-    return data.name, best_cfg, best_score
+    #print(data.name, best_cfg, 'MSE=%.2E' % best_mse)
+    return data.name, best_cfg, best_mse, mape, corr, minmax
 
 
-# Step 3): Loop through all countries to make predictions
+# Step 4-3): Loop through all countries to make predictions
 def countries_arima(data):
     results = []
     for country in data.columns:
         country_result = gridsearch_arima(data[country], p_values, d_values, q_values)
         results.append(country_result)
-    results = pd.DataFrame(results, columns=['country', 'best_arima', 'mse'])
+    results = pd.DataFrame(results, columns=['country', 'best_arima', 'mse','mape','corr','minmax'])
     return results
 
 ########################################################################
 
 # Putting all together:
 
-def crop_country_arima_analysis(data, item, element, plot=True):
+# Function 1: data preprocessing and visualization
+def crop_country_preprocess(data, years, item, element, plot=True):
     '''function to conduct crop-by-country arima analysis'''
 
     # step 1 : extract data
-    df_original = item_element_country(data, item, element)
+    df_original = item_element_country(data, years, item, element)
 
     # step 2 : normalize data
     df_normalized = df_normalize(df_original)
 
+    # Step 3: check stationarity and remove non-stationary countries
+    stationary_countries = stationarity(df_normalized) # Check stationarity
+
+    df_processed = df_normalized[stationary_countries] # Remove non-stationary countries from data frame
+
     # Plotting 1
     if plot==True:
         # Visually compare original data and normalized data
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 5))
+        fig, (ax1, ax2) = plt.subplots(1, 2, sharey=True, figsize=(15, 5))
         ax1.plot(df_original)
         ax2.plot(df_normalized)
 
         ax1.set_title('original')
         ax1.set_ylabel('tonnes')
-        ax2.set_title('normalized')
-        ax2.set_ylabel('normalized scale (log-transformed)')
+        ax2.set_title('Three-year Average')
+
         fig.suptitle('Annual {} {} by Countries'.format(item, element))
         plt.show()
 
         import warnings
         warnings.filterwarnings("ignore")
 
-    # Step 3: check stationarity and remove non-stationary countries
-    stationary_countries = stationarity(df_normalized) # Check stationarity
+    return df_original, df_processed
 
-    df_processed = df_normalized[stationary_countries] # Remove non-stationary countries from data frame
+# Function 2: ARIMA modeling
+
+
+def crop_country_arima(df_processed, item, element, plot=True):
+    '''function to conduct crop-by-country arima analysis'''
 
     # Step 5 Training an ARIMA model for each country and use gridsearch to find best parameters
     df_arima = countries_arima(df_processed)
@@ -177,13 +200,99 @@ def crop_country_arima_analysis(data, item, element, plot=True):
     df_arima.to_csv('../data/processed/arima_{}_{}_.csv'.format(item, element))
 
     # Plotting 2: MSE
-    if plot == True:
+    # ref: https://matplotlib.org/3.1.0/gallery/subplots_axes_and_figures/subplots_demo.html
 
-        df_arima = df_arima.sort_values(by='mse')
-        plt.figure(figsize=(20, 10))
-        plt.plot(df_arima['mse'])
-        plt.xlabel('Country', fontsize=20)
-        plt.ylabel('Mean squared error of best ARIMA model', fontsize=20)
-        plt.xticks(fontsize=12, rotation=90)
-        plt.yticks(fontsize=14)
-        plt.show()
+    if plot == True:
+        df_arima = df_arima.sort_values(by='mape')
+        fig, axs = plt.subplots(2, 2, figsize=(20, 12))
+
+
+        for ax in fig.axes:
+            plt.sca(ax)
+            plt.xticks(rotation=90)
+            axs[0, 0].plot(df_arima['mape'])
+            axs[0, 0].set_title('Mean Absolute Percentage Error')
+            axs[0, 1].plot(df_arima['corr'])
+            axs[0, 1].set_title('Correlation between predictions and test data')
+            axs[1, 0].plot(df_arima['minmax'])
+            axs[1, 0].set_title('Min-Max Error')
+            axs[1, 1].plot(df_arima['mse'])
+            axs[1, 1].set_title('Mean Squared Error')
+
+    return df_arima
+
+
+
+# Function 3: ARIMA forecasting for each country using best parameters
+
+# default 8 years, into 2025
+
+
+def crop_country_forecast(df_processed, df_arima, n_periods=8):
+
+    index_future = pd.date_range(start='2018', periods= n_periods, freq='AS-JAN')
+    index = pd.date_range(start='1988', end=index_future.tolist()[-1], freq='AS-JAN')
+
+    forecast_values = pd.DataFrame(index=index)
+    lower_ci_values = pd.DataFrame()
+    upper_ci_values = pd.DataFrame()
+
+    for country in df_processed.columns:
+        processed = df_processed[country]
+
+        try:
+            model = ARIMA(processed, order=df_arima.loc[country][0])
+            model_fit = model.fit()
+
+            # forecast 8 years into the future -- 2025
+            forecast = model_fit.predict(start='1988', end=index_future.tolist()[-1])
+            forecast.name = country
+
+
+            # Get confidence intervals
+            lower_ci = pd.Series(model_fit.forecast(n_periods)[2][:, 0])
+            lower_ci.name = country
+            upper_ci = pd.Series(model_fit.forecast(n_periods)[2][:, 1])
+            upper_ci.name = country
+
+            forecast_values = pd.concat([forecast_values, pd.DataFrame(forecast)], axis=1)
+            lower_ci_values = pd.concat([lower_ci_values, pd.DataFrame(lower_ci)], axis=1)
+            upper_ci_values = pd.concat([upper_ci_values, pd.DataFrame(upper_ci)], axis=1)
+            # print('{} fitted'.format(country))  # progress check
+
+        except:
+            continue
+
+    lower_ci_values = lower_ci_values.set_index(index_future)
+    upper_ci_values = upper_ci_values.set_index(index_future)
+
+    forecast_values.to_csv('../data/interim/forecast_{}_{}_.csv'.format(item, element))
+    lower_ci_values.to_csv('../data/interim/lower_ci_values_{}_{}_.csv'.format(item, element))
+    upper_ci_values.to_csv('../data/interim/upper_ci_values_{}_{}_.csv'.format(item, element))
+
+    return forecast_values, lower_ci_values, upper_ci_values
+
+
+# Function 4 : plotting
+def plot_forecast(country, df_processed, forecast_values, lower_ci_values, upper_ci_values,
+                  item,element,unit, n_periods=8):
+
+    '''Function to plot selected country data including 3-year average, predicted and 95% CI'''
+    index_future = pd.date_range(start='2018', periods= n_periods, freq='AS-JAN')
+    index = pd.date_range(start='1988', end=index_future.tolist()[-1], freq='AS-JAN')
+
+    fig, ax = plt.subplots()
+    ax.plot(df_processed[country], label='Three-year average')
+    ax.plot(forecast_values[country], color='red', label='Predicted')
+
+    # Plot CI
+    ax.fill_between(index_future, lower_ci_values[country],
+                    upper_ci_values[country], color='gray', alpha=.5, label='95% confidence interval')
+    ax.set_title('Predicted {} {} by {}'.format(item, element, country))
+    ax.set_ylabel(unit)
+    ax.legend(loc='upper left', frameon=False)
+    # set y axis to be begin at 0 and max at 1.2 times of maximum value in the plot
+    plt.ylim(0, max(max(df_processed[country]), max(forecast_values[country]), max(upper_ci_values[country])) * 1.2)
+
+
+    return fig
