@@ -114,7 +114,7 @@ def eval_arima(data, order, split=split):
 
 # Step 4-2): Grid search for order(p,d,q) of ARIMA model
 p_values = [0, 1, 2, 3, 4, 5, 6]
-d_values = [0]  # processed data are non-stationary so no need to optimize d value
+#d_values = [0]  # processed data are non-stationary so no need to optimize d value
 q_values = [0, 1, 2]
 
 
@@ -122,28 +122,27 @@ import warnings
 warnings.filterwarnings("ignore")
 
 
-def gridsearch_arima(data, p_values, d_values, q_values, split=split):
-    best_mse, mape, corr, minmax, best_cfg = float("inf"),float("inf"),float("inf"),float("inf"), None
+def gridsearch_arima(data, p_values, q_values, split=split):
+    mse, mape, corr, minmax, best_cfg = float("inf"),float("inf"),float("inf"),float("inf"), None
     for p in p_values:
-        for d in d_values:
-            for q in q_values:
-                order = (p, d, q)
-                split = split
-                try:
-                    metrics = eval_arima(data, order, split)
-                    if metrics['MSE'] < best_mse: # Use MSE as accuracy metric
-                        best_mse, mape, corr, minmax, best_cfg = metrics['MSE'], metrics['MAPE'], metrics['Corr'], metrics['MinMax'], order
-                except:
-                    continue
-    #print(data.name, best_cfg, 'MSE=%.2E' % best_mse)
-    return data.name, best_cfg, best_mse, mape, corr, minmax
+        for q in q_values:
+            order = (p, 0, q)
+            split = split
+            try:
+                metrics = eval_arima(data, order, split)
+                if metrics['MSE'] < mse: # Use MSE as accuracy metric, find minimum MSE
+                    mse, mape, corr, minmax, best_cfg = metrics['MSE'], metrics['MAPE'], metrics['Corr'], metrics['MinMax'], order
+            except:
+                continue
+    print(data.name, best_cfg, 'MSE=%.2E' % mse, 'MAPE=%.2E' % mape, 'Corr=%.2E' % corr,)
+    return data.name, best_cfg, mse, mape, corr, minmax
 
 
 # Step 4-3): Loop through all countries to make predictions
 def countries_arima(data):
     results = []
     for country in data.columns:
-        country_result = gridsearch_arima(data[country], p_values, d_values, q_values)
+        country_result = gridsearch_arima(data[country], p_values, q_values)
         results.append(country_result)
     results = pd.DataFrame(results, columns=['country', 'best_arima', 'mse','mape','corr','minmax'])
     return results
@@ -153,43 +152,48 @@ def countries_arima(data):
 # Putting all together:
 
 # Function 1: data preprocessing and visualization
-def crop_country_preprocess(data, years, item, element, plot=True):
+def crop_country_preprocess(data, years, item, element, plot=False):
     '''function to conduct crop-by-country arima analysis'''
 
     # step 1 : extract data
     df_original = item_element_country(data, years, item, element)
 
-    # step 2 : normalize data
-    df_normalized = df_normalize(df_original)
+    if df_original.shape[1] == 0:
+        print('Insufficient data for analyzing {}'.format(item))
+    else:
+        # step 2 : normalize data
+        df_normalized = df_normalize(df_original)
 
-    # Step 3: check stationarity and remove non-stationary countries
-    stationary_countries = stationarity(df_normalized) # Check stationarity
+        # Step 3: check stationarity and remove non-stationary countries
+        stationary_countries = stationarity(df_normalized) # Check stationarity
+        df_processed = df_normalized[stationary_countries] # Remove non-stationary countries from data frame
 
-    df_processed = df_normalized[stationary_countries] # Remove non-stationary countries from data frame
+        if df_processed.shape[1] == 0:
+            print('Insufficient data for analyzing {}'.format(item))
+        else:
+        # Plotting 1
+            if plot==True:
+                # Visually compare original data and normalized data
+                fig, (ax1, ax2) = plt.subplots(1, 2, sharey=True, figsize=(15, 5))
+                ax1.plot(df_original)
+                ax2.plot(df_normalized)
 
-    # Plotting 1
-    if plot==True:
-        # Visually compare original data and normalized data
-        fig, (ax1, ax2) = plt.subplots(1, 2, sharey=True, figsize=(15, 5))
-        ax1.plot(df_original)
-        ax2.plot(df_normalized)
+                ax1.set_title('original')
+                ax1.set_ylabel('tonnes')
+                ax2.set_title('Three-year Average')
 
-        ax1.set_title('original')
-        ax1.set_ylabel('tonnes')
-        ax2.set_title('Three-year Average')
+                fig.suptitle('Annual {} {} by Countries'.format(item, element))
+                plt.show()
 
-        fig.suptitle('Annual {} {} by Countries'.format(item, element))
-        plt.show()
+                import warnings
+                warnings.filterwarnings("ignore")
 
-        import warnings
-        warnings.filterwarnings("ignore")
-
-    return df_original, df_processed
+            return df_original, df_processed
 
 # Function 2: ARIMA modeling
 
 
-def crop_country_arima(df_processed, item, element, plot=True):
+def crop_country_arima(df_processed, item, element, plot=False):
     '''function to conduct crop-by-country arima analysis'''
 
     # Step 5 Training an ARIMA model for each country and use gridsearch to find best parameters
@@ -197,7 +201,7 @@ def crop_country_arima(df_processed, item, element, plot=True):
 
     # Save results
     df_arima = df_arima.set_index('country')
-    df_arima.to_csv('../data/processed/arima_{}_{}_.csv'.format(item, element))
+    df_arima.to_csv('../data/processed/arima/arima_{}_{}_.csv'.format(item, element))
 
     # Plotting 2: MSE
     # ref: https://matplotlib.org/3.1.0/gallery/subplots_axes_and_figures/subplots_demo.html
@@ -228,7 +232,7 @@ def crop_country_arima(df_processed, item, element, plot=True):
 # default 8 years, into 2025
 
 
-def crop_country_forecast(df_processed, df_arima, n_periods=8):
+def crop_country_forecast(df_processed, df_arima, item, element, n_periods=8):
 
     index_future = pd.date_range(start='2018', periods= n_periods, freq='AS-JAN')
     index = pd.date_range(start='1988', end=index_future.tolist()[-1], freq='AS-JAN')
@@ -296,3 +300,35 @@ def plot_forecast(country, df_processed, forecast_values, lower_ci_values, upper
 
 
     return fig
+
+
+########################################################################
+########################################################################
+## Combine all steps into one function and not output plots
+## Out put names of countries being processed
+## Out put csv files for arima parameters, forecast values and CIs
+
+def arima_pipeline(data, item, element, years):
+
+    # Function 1: data preprocessing
+    df = crop_country_preprocess(data, years, item, element, plot=False)
+    print('Data for {} processed'.format(item))
+    if df == None:
+        print('Skip {}'.format(item))
+    else:
+        df_processed = df[1] # Get processed data frame from df
+        country_names = df_processed.columns.tolist() # Get processed countries
+
+        # Function 2: ARIMA modeling
+        df_arima = crop_country_arima(df_processed, item, element, plot=False)
+        print('Arima models for {} optimaized for countries'.format(item))
+
+        # Function 3: ARIMA forecasting for each country using best parameters
+        # default 8 years, into 2025
+        forecast = crop_country_forecast(df_processed, df_arima, item, element, n_periods=8)
+
+        return country_names
+
+
+
+
