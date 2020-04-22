@@ -8,6 +8,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+import streamlit as st
 
 # For ARIMA model
 from sklearn.metrics import mean_squared_error
@@ -69,6 +70,7 @@ def stationarity(df):
         if stationarity[1] <= 0.05:
             non_stationary_countries.append(country)
         stationary_countries = [i for i in df.columns.tolist() if i not in non_stationary_countries]
+
     print('There were {} non-stationary countries being removed and\n result in {} stationary countries'.format(
         len(non_stationary_countries),
         len(stationary_countries)))
@@ -131,7 +133,7 @@ def gridsearch_arima(data, p_values, q_values, split=split):
             try:
                 metrics = eval_arima(data, order, split)
                 if metrics['MSE'] < mse: # Use MSE as accuracy metric, find minimum MSE
-                    mse, mape, corr, minmax, best_cfg = metrics['MSE'], metrics['MAPE'], metrics['Corr'], metrics['MinMax'], order
+                    mse, mape, corr, minmax, best_cfg = metrics['MSE'], metrics['MAPE'], metrics['Corr'], metrics['MinMax'], [order[0],order[1],order[2]]
             except:
                 continue
     print(data.name, best_cfg, 'MSE=%.2E' % mse, 'MAPE=%.2E' % mape, 'Corr=%.2E' % corr,)
@@ -169,7 +171,7 @@ def crop_country_preprocess(data, years, item, element, plot=False):
         df_processed = df_normalized[stationary_countries] # Remove non-stationary countries from data frame
 
         if df_processed.shape[1] == 0:
-            print('Insufficient data for analyzing {}'.format(item))
+            print('Insufficient data for modeling {}'.format(item))
         else:
         # Plotting 1
             if plot==True:
@@ -201,7 +203,7 @@ def crop_country_arima(df_processed, item, element, plot=False):
 
     # Save results
     df_arima = df_arima.set_index('country')
-    df_arima.to_csv('../data/processed/arima/arima_{}_{}_.csv'.format(item, element))
+    #df_arima.to_csv('../data/processed/arima/arima_{}_{}_.csv'.format(item, element))
 
     # Plotting 2: MSE
     # ref: https://matplotlib.org/3.1.0/gallery/subplots_axes_and_figures/subplots_demo.html
@@ -232,7 +234,7 @@ def crop_country_arima(df_processed, item, element, plot=False):
 # default 8 years, into 2025
 
 
-def crop_country_forecast(df_processed, df_arima, item, element, n_periods=8):
+def crop_country_forecast(df_processed, df_arima, n_periods=8):
 
     index_future = pd.date_range(start='2018', periods= n_periods, freq='AS-JAN')
     index = pd.date_range(start='1988', end=index_future.tolist()[-1], freq='AS-JAN')
@@ -270,11 +272,59 @@ def crop_country_forecast(df_processed, df_arima, item, element, n_periods=8):
     lower_ci_values = lower_ci_values.set_index(index_future)
     upper_ci_values = upper_ci_values.set_index(index_future)
 
-    forecast_values.to_csv('../data/interim/forecast_{}_{}_.csv'.format(item, element))
-    lower_ci_values.to_csv('../data/interim/lower_ci_values_{}_{}_.csv'.format(item, element))
-    upper_ci_values.to_csv('../data/interim/upper_ci_values_{}_{}_.csv'.format(item, element))
-
     return forecast_values, lower_ci_values, upper_ci_values
+
+
+
+
+########################################################################
+########################################################################
+
+
+def country_selected(df, years, item, element, countries):
+
+
+    data = df.loc[(df['Item'] == item) & (df['Element'] == element), :]
+
+    # Reshape data from wide to long by years
+    data_long = data.melt(['Reporter Countries'], years, 'year', 'value')
+
+    # Convert data to time series
+    data_long['year'] = data_long['year'].map(
+        lambda x: x.lstrip('Y'))  # strip Y from year names for easy converting to ts
+    data_long.year = pd.to_datetime(data_long.year)
+
+    # Reshape data from long to wide, turn countries into columns
+    df_original = data_long.pivot(index='year', columns='Reporter Countries', values='value')
+
+    # Calculate 3-year rolling mean
+    rolled = df_original.rolling(3).mean().add(1)
+    df_normalized = rolled[2:]
+
+    # Filter for countries selected by user
+    df_original_selected = df_original[countries]
+    df_normalized_selected = df_normalized[countries]
+
+    return df_original_selected, df_normalized_selected
+
+
+def plot_selected(df1, df2, item, element, countries, item_unit):
+
+    # Visually compare original data and normalized data
+    fig, (ax1, ax2) = plt.subplots(1, 2, sharey=True, figsize=(12, 4))
+    ax1.plot(df1)
+    ax2.plot(df2)
+
+    ax1.set_xlabel('Original data', fontsize=12)
+    ax2.set_xlabel('Three-year Rolling Average',fontsize=12)
+
+    ax1.set_ylabel('{}'.format(item_unit[0]), fontsize=12)
+    fig.suptitle('Annual {} {} by Countries'.format(item, element), fontsize=12)
+    plt.legend(title='Country', labels=countries, loc='upper right', fontsize=10,
+               handlelength=3, borderpad=1.2, labelspacing=0.6, bbox_to_anchor=(1.4, 1.05))
+    plt.tight_layout(pad =1.5)
+
+    return fig
 
 
 # Function 4 : plotting
@@ -283,95 +333,20 @@ def plot_forecast(country, df_processed, forecast_values, lower_ci_values, upper
 
     '''Function to plot selected country data including 3-year average, predicted and 95% CI'''
     index_future = pd.date_range(start='2018', periods= n_periods, freq='AS-JAN')
-    index = pd.date_range(start='1988', end=index_future.tolist()[-1], freq='AS-JAN')
+    index = pd.date_range(start='1990', end=index_future.tolist()[-1], freq='AS-JAN')
 
     fig, ax = plt.subplots()
-    ax.plot(df_processed[country], label='Three-year average')
-    ax.plot(forecast_values[country], color='red', label='Predicted')
+    ax.plot(df_processed[country]['1990-01-01':], label='Three-year average')
+    ax.plot(forecast_values[country]['1990-01-01':], color='red', label='Predicted')
 
     # Plot CI
     ax.fill_between(index_future, lower_ci_values[country],
                     upper_ci_values[country], color='gray', alpha=.5, label='95% confidence interval')
     ax.set_title('Predicted {} {} by {}'.format(item, element, country))
-    ax.set_ylabel(unit)
+    ax.set_ylabel(unit[0])
     ax.legend(loc='upper left', frameon=False)
     # set y axis to be begin at 0 and max at 1.2 times of maximum value in the plot
     plt.ylim(0, max(max(df_processed[country]), max(forecast_values[country]), max(upper_ci_values[country])) * 1.2)
 
-
-    return fig
-
-
-########################################################################
-########################################################################
-## Combine all steps into one function and not output plots
-## Out put names of countries being processed
-## Out put csv files for arima parameters, forecast values and CIs
-
-def arima_pipeline(data, item, element, years):
-
-    # Function 1: data preprocessing
-    df = crop_country_preprocess(data, years, item, element, plot=False)
-    print('Data for {} processed'.format(item))
-    if df == None:
-        print('Skip {}'.format(item))
-    else:
-        df_processed = df[1] # Get processed data frame from df
-        country_names = df_processed.columns.tolist() # Get processed countries
-
-        # Function 2: ARIMA modeling
-        df_arima = crop_country_arima(df_processed, item, element, plot=False)
-        print('Arima models for {} optimaized for countries'.format(item))
-
-        # Function 3: ARIMA forecasting for each country using best parameters
-        # default 8 years, into 2025
-        forecast = crop_country_forecast(df_processed, df_arima, item, element, n_periods=8)
-
-        return country_names
-
-
-
-
-
-def plot_selected(df, years, item, element, countries):
-
-    try:
-        data = df.loc[(df['Item'] == item) & (df['Element'] == element), :]
-
-        # Reshape data from wide to long by years
-        data_long = data.melt(['Reporter Countries'], years, 'year', 'value')
-
-        # Convert data to time series
-        data_long['year'] = data_long['year'].map(
-            lambda x: x.lstrip('Y'))  # strip Y from year names for easy converting to ts
-        data_long.year = pd.to_datetime(data_long.year)
-
-        # Reshape data from long to wide, turn countries into columns
-        df_original = data_long.pivot(index='year', columns='Reporter Countries', values='value')
-
-        # Calculate 3-year rolling mean
-        rolled = df_original.rolling(3).mean().add(1)
-        df_normalized = rolled[2:]
-
-        # Filter for countries selected by user
-        df_original_selected = df_original[countries]
-        df_normalized_selected = df_normalized[countries]
-
-
-        # Visually compare original data and normalized data
-        fig, (ax1, ax2) = plt.subplots(1, 2, sharey=True, figsize=(12, 4))
-        p1 = ax1.plot(df_original_selected)[0]
-        p2 = ax2.plot(df_normalized_selected)[0]
-
-        ax1.set_xlabel('Original data', fontsize=12)
-        ax1.set_ylabel('tonnes', fontsize=12)
-        ax2.set_xlabel('Three-year Average',fontsize=12)
-
-        fig.suptitle('Annual {} {} by Countries'.format(item, element), fontsize=12)
-        plt.legend(title='Country', labels=countries, loc='upper right', fontsize=10,
-                   handlelength=3, borderpad=1.2, labelspacing=0.6, bbox_to_anchor=(1.4, 1.05))
-        plt.tight_layout(pad =1.5)
-    except:
-        st.write('No country selected')
 
     return fig
