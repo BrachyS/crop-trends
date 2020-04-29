@@ -26,7 +26,7 @@ def item_element_country(df, years, item, element):
 
     data = df.loc[(df['Item'] == item) & (df['Element'] == element), :]
     data_50 = data.loc[data['NoneZero'] >= 16, :]
-    print('{} country names selected for those with >50% non-zero data'.format(data_50.shape[0]))
+    #print('{} country names selected for those with >50% non-zero data'.format(data_50.shape[0]))
 
     # Reshape data from wide to long by years
     data_long = data_50.melt(['Reporter Countries'], years, 'year', 'value')
@@ -70,7 +70,7 @@ def stationarity(df):
             non_stationary_countries.append(country)
         stationary_countries = [i for i in df.columns.tolist() if i not in non_stationary_countries]
 
-    print('There were {} non-stationary countries being removed and\n result in {} stationary countries'.format(
+    #print('There were {} non-stationary countries being removed and\n result in {} stationary countries'.format(
         len(non_stationary_countries),
         len(stationary_countries)))
     return stationary_countries
