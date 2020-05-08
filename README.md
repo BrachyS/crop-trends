@@ -18,5 +18,5 @@ Outline of codes:
 [2. Exploratory analysis](https://github.com/BrachyS/crop-trends/blob/master/notebooks/2_exploratory-analysis-agtrade.ipynb)  
 [3. Arima modeling for five top crops](https://github.com/BrachyS/crop-trends/blob/master/notebooks/3_top_crops_arima.ipynb)  
 [4. Streamline ARIMA modeling for all item-by-country combinations](https://github.com/BrachyS/crop-trends/blob/master/notebooks/4._streamline_ARIMA_modeling.ipynb)  
-[5. Next steps](In progress)  
+[5. Next steps](https://github.com/BrachyS/crop-trends/blob/master/notebooks/5_Clustering_countries.ipynb)(In progress)  
 [Dashboard](https://github.com/BrachyS/crop-trends/blob/master/dashboard/dash_export.py)
