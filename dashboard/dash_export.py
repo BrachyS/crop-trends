@@ -7,7 +7,13 @@ warnings.filterwarnings("ignore")
 import time
 from functions import dash_functions as ca # Import Customized ARIMA functions
 
-'''## Global Agricultural Commodities Export Forecast (2020-2025)'''
+'''## **AgTrend**'''
+'''## Global Agricultural Commodities Production and Trade Forecast (2020-2025)'''
+'''(Under development)'''
+''' Data source: http://www.fao.org/faostat/en/#data/TM '''
+''' Author: Shuangshuang (Sabrina) Liu '''
+''' Please note: Forecasting results are not reviewed by domain experts and are for references only.'''
+
 data_path = "../data/processed/items_by_country.csv"
 
 with st.spinner('Loading data...'):
@@ -93,3 +99,5 @@ if st.sidebar.checkbox('Fit ARIMA models for selected country (scroll down for f
                             , results[1], results[2], results[3],
                             option_item, option_element, option_unit)
     ffig
+
+

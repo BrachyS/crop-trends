@@ -72,7 +72,7 @@ def stationarity(df):
 
     #print('There were {} non-stationary countries being removed and\n result in {} stationary countries'.format(
         len(non_stationary_countries),
-        len(stationary_countries)))
+        len(stationary_countries)
     return stationary_countries
 
 
