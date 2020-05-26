@@ -15,7 +15,8 @@ Access to the project's dashboard here: [Global Agricultural Commodities Export 
 
 Reports:  
 [Presentaion slides](https://github.com/BrachyS/crop-trends/blob/master/reports/agtrend_presentation.pptx)  
-[Milestone report](https://github.com/BrachyS/crop-trends/blob/master/reports/cap2_milestone_report2_SSL.pdf)
+
+[Final report](https://github.com/BrachyS/crop-trends/blob/master/reports/cap2_finalreport.pdf)
 
 Outline of codes:  
 [1. Data Cleaning](https://github.com/BrachyS/crop-trends/blob/master/notebooks/1_data-cleaning-agtrend.ipynb)  
