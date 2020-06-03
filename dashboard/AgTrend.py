@@ -52,7 +52,7 @@ eligible_original, eligible_processed = ca.crop_country_preprocess(data=items_by
                                                 years=years,item=option_item, element=option_element, plot=False)
 
 #Select elegible country
-eligible_list = eligible_original.columns.tolist()
+eligible_list = eligible_processed.columns.tolist()
 
 option_country = st.sidebar.multiselect('Explore from {} countries that have data eligible for modeling '.format(
                                         len(eligible_list),option_element,option_item), eligible_list)
@@ -85,9 +85,11 @@ if st.sidebar.checkbox('Fit ARIMA models for selected country (scroll down for f
             st.write('No country selected')
         else:
             df_arima = ca.crop_country_arima(df, item=option_item, element=option_element, plot=False)
-            forecast, lower_ci, upper_ci = ca.crop_country_forecast(eligible_processed[[country]], df_arima)
+            forecast, lower_ci, upper_ci = ca.crop_country_forecast(df, df_arima)
             return df_arima,forecast, lower_ci, upper_ci
+
     results = model(eligible_processed[[country]])
+
 
     with st.spinner('Modeling completed.'):
         time.sleep(1)

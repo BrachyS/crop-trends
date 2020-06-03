@@ -83,7 +83,7 @@ def stationarity(df):
 split = 0.7  # default train-test split value
 def eval_arima(data, order, split=split):
     '''function to split a time series into train and test set, build an ARIMA model
-      use rolling one-at-a-time predictions, and reture mean squared error of the model'''
+      use rolling one-at-a-time predictions, and return mean squared error of the model'''
 
     # split dataset into training and testing
     train_size = int(len(data) * split)
@@ -232,7 +232,7 @@ def crop_country_arima(df_processed, item, element, plot=False):
 # default 8 years, into 2025
 
 
-def crop_country_forecast(df_processed, df_arima, item, element, n_periods=8):
+def crop_country_forecast(df_processed, df_arima, n_periods=8):
 
     index_future = pd.date_range(start='2018', periods= n_periods, freq='AS-JAN')
     index = pd.date_range(start='1988', end=index_future.tolist()[-1], freq='AS-JAN')
@@ -270,9 +270,9 @@ def crop_country_forecast(df_processed, df_arima, item, element, n_periods=8):
     lower_ci_values = lower_ci_values.set_index(index_future)
     upper_ci_values = upper_ci_values.set_index(index_future)
 
-    forecast_values.to_csv('../data/interim/forecast_{}_{}_.csv'.format(item, element))
-    lower_ci_values.to_csv('../data/interim/lower_ci_values_{}_{}_.csv'.format(item, element))
-    upper_ci_values.to_csv('../data/interim/upper_ci_values_{}_{}_.csv'.format(item, element))
+    #forecast_values.to_csv('../data/interim/forecast_{}_{}_.csv'.format(item, element))
+    #lower_ci_values.to_csv('../data/interim/lower_ci_values_{}_{}_.csv'.format(item, element))
+    #upper_ci_values.to_csv('../data/interim/upper_ci_values_{}_{}_.csv'.format(item, element))
 
     return forecast_values, lower_ci_values, upper_ci_values
 
