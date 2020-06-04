@@ -9,10 +9,8 @@ from functions import dash_functions as ca # Import Customized ARIMA functions
 
 '''## **AgTrend**'''
 '''## Global Agricultural Commodities Production and Trade Forecast (2020-2025)'''
-'''(Under development)'''
-''' Data source: http://www.fao.org/faostat/en/#data/TM '''
+'''(Check back for updates!)'''
 ''' Author: Shuangshuang (Sabrina) Liu '''
-''' Please note: Forecasting results are not reviewed by domain experts and are for references only.'''
 
 data_path = "../data/processed/items_by_country.csv"
 
@@ -75,7 +73,7 @@ if st.sidebar.checkbox('Show selected raw data'):
     st.write(data_original)
 
 ####################
-'''#### Step 2:  Fit an ARIMA model for the item-by-country combination '''
+'''#### Step 2:  Fit an ARIMA model for the item-by-country combination (check box from left sidebar)'''
 country = st.sidebar.selectbox('Select one country for modeling ',eligible_list)
 
 if st.sidebar.checkbox('Fit ARIMA models for selected country (scroll down for forecast plot)'):
@@ -101,5 +99,15 @@ if st.sidebar.checkbox('Fit ARIMA models for selected country (scroll down for f
                             , results[1], results[2], results[3],
                             option_item, option_element, option_unit)
     ffig
+
+    '''Notes:'''
+    '''best_arima: optimized parameters for ARIMA models. Ref: https://en.wikipedia.org/wiki/Autoregressive_integrated_moving_average
+    (currently, only stationary time series were included in modeling so the second parameter (d) is always 0)'''
+    '''mse: Mean squared error'''
+    '''mspe: Mean Absolute Percentage Error'''
+    '''corr: Correlation between predictions and test data'''
+    '''minmax: Min-Max Error'''
+    ''' Data source: http://www.fao.org/faostat/en/#data/TM '''
+    ''' Please note: Forecasting results are not reviewed by domain experts and are for references only.'''
 
 
