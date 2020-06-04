@@ -11,6 +11,7 @@ from functions import dash_functions as ca # Import Customized ARIMA functions
 '''## Global Agricultural Commodities Production and Trade Forecast (2020-2025)'''
 '''(Check back for updates!)'''
 ''' Author: Shuangshuang (Sabrina) Liu '''
+''' Data source: http://www.fao.org/faostat/en/#data/TM '''
 
 data_path = "../data/processed/items_by_country.csv"
 
@@ -107,7 +108,6 @@ if st.sidebar.checkbox('Fit ARIMA models for selected country (scroll down for f
     '''mspe: Mean Absolute Percentage Error'''
     '''corr: Correlation between predictions and test data'''
     '''minmax: Min-Max Error'''
-    ''' Data source: http://www.fao.org/faostat/en/#data/TM '''
     ''' Please note: Forecasting results are not reviewed by domain experts and are for references only.'''
 
 
