@@ -11,7 +11,7 @@ Government officials and policy makers, NGOs and research institutions intereste
 
 Dataset used in this project: http://www.fao.org/faostat/en/#data/TM
 
-Access to the project's dashboard here: [Global Agricultural Commodities Export Forecast](http://agtrend.org:8501/), where you can select a country, an export/import item and metrics, and optimize an ARIMA model to predict trends into year 2025 (check back for updates!).
+Access the project's dashboard here: [Global Agricultural Commodities Export Forecast](http://agtrend.org:8501/), where you can select a country, an export/import item and metrics, and optimize an ARIMA model to predict trends into year 2025 (check back for updates!).
 
 Reports:  
 [Presentaion slides](https://github.com/BrachyS/crop-trends/blob/master/reports/agtrend_presentation.pptx)  
